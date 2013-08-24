@@ -8,8 +8,9 @@ var Sound = function() {
 
     this._halfStep = Math.pow(2, (1/12));
     this._wholeStep = Math.pow(2, (1/6));
-
-    this._steps = {'w': this._wholeStep, 'h': this._halfStep};
+    this._wholeHalfStep = Math.pow(2, (1/12 + 1/6));
+    this._steps = {'w': this._wholeStep, 'h': this._halfStep,
+        'wh': this._wholeHalfStep};
 
     this.notes = {
         a: 220.0,
@@ -23,22 +24,30 @@ var Sound = function() {
 
     this.scales = {
         major: ['w', 'w', 'h', 'w', 'w', 'w', 'h'],
-        minor: ['w', 'h', 'w', 'w', 'h', 'w', 'w']
-
+        minor: ['w', 'h', 'w', 'w', 'h', 'w', 'w'],
+        pentatonic: ['w', 'wh', 'w', 'w', 'wh'],
+        gypsy: ['w', 'h', 'wh', 'h', 'h', 'wh', 'h'],
+        blues: ['w', 'h', 'h', 'h', 'h','h', 'w', 'h', 'h', 'h']
     };
 
+    this._random = function(from,to) {
+        return Math.floor(Math.random()*(to-from+1)+from);
+    }
 }
 
 Sound.prototype.addOscillator = function() {
-    var oldNumOsc = this._numOsc;
+    if (this._numOsc < 0) this._numOsc = 0;
+
+    var oldNumOsc = this._numOsc ? this._numOsc : 1;
     this._numOsc = this._numOsc + 1.0;
-    console.log('osc#: ' + this._numOsc);
-    this.setVolume(this._volume.gain.value * (oldNumOsc || 1));
+    console.log(this._volume.gain.value);
+    this.setVolume(this._volume.gain.value * oldNumOsc );
     return this.ac.createOscillator();
 }
 
 Sound.prototype.removeOscillator = function() {
-    var oldNumOsc = this._numOsc;
+    if (this._numOsc < 1) this._numOsc = 0;
+    var oldNumOsc = this._numOsc || 1;
     this._numOsc = this._numOsc - 1.0;
     this.setVolume(this._volume.gain.value*oldNumOsc);
 }
@@ -47,9 +56,23 @@ Sound.prototype.play = function(freq) {
     console.log('play: ' + freq);
     this.stop();
     this.osc = this.addOscillator();
+    this.osc.type = 2;
     this.osc.frequency.value = freq;
     this.osc.connect(this._volume);
     this.osc.noteOn(0);
+}
+
+Sound.prototype.playRandomFromSclae = function (root, scale, num) {
+    // compute entire base scale
+    var notes = [root],
+        self = this;
+    scale.forEach(function(step) {
+       notes.push(notes[notes.length-1] * self._steps[step]);
+    });
+ 
+    for (var i=0; i < num; i++) { 
+        this.play(notes[this._random(0, notes.length-1)]);        
+    }    
 }
 
 Sound.prototype.playScaleProgression = function(root, scale) {
@@ -85,7 +108,10 @@ Sound.prototype.playChord = function(freqs) {
 }
 
 Sound.prototype.stop = function() {
-    if (this.osc) this.osc.noteOff(0);
+    if (this.osc) {
+        this.osc.noteOff(0);
+        this.removeOscillator();
+    }
 }
 
 Sound.prototype.stopChord = function(i) {
